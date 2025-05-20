@@ -6,6 +6,15 @@ plugins {
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/lualink/fast-reflection")
+        name = "FastReflection"
+        credentials {
+            username = findProperty("gpr.actor") ?: System.getenv("GITHUB_ACTOR")
+            password = findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+
 }
 
 group = rootProject.group
@@ -14,6 +23,7 @@ version = rootProject.version
 dependencies {
     implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'com.badlogicgames.gdx:gdx-jnigen-loader:2.5.2'
+    implementation 'me.sunlan:fast-reflection:1.0.3'
 }
 
 tasks.withType(JavaCompile) {

@@ -29,6 +29,10 @@ import party.iroiro.luajava.util.LRUCache;
 import party.iroiro.luajava.value.LuaValue;
 
 import java.lang.reflect.*;
+import me.sunlan.fastreflection.FastMethod;
+import me.sunlan.fastreflection.FastField;
+import me.sunlan.fastreflection.FastConstructor;
+import me.sunlan.fastreflection.FastClass;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -155,18 +159,24 @@ public abstract class JuaAPI {
         AbstractLua L = Jua.get(id);
         try {
             Class<?> clazz = ClassUtils.forName(className);
-            Method method = clazz.getDeclaredMethod(methodName, Lua.class);
-            if (method.getReturnType() == int.class) {
-                //noinspection Convert2Lambda
+            FastClass<?> fastClass = FastClass.create(clazz);
+            FastMethod method;
+            try {
+                method = fastClass.getMethod(methodName, Lua.class);
+            } catch (NoSuchMethodException e) {
+                L.pushNil();
+                L.push("\n  no method '" + methodName + "': no such method");
+                return 2;
+            }
+            // FastMethod.getReturnType() returns FastClass<?>, so get the raw class
+            if (method.getReturnType().getRawClass() == int.class) {
                 L.push(new JFunction() {
                     @Override
                     public int __call(Lua l) {
                         try {
                             return (Integer) method.invoke(null, l);
-                        } catch (IllegalAccessException e) {
+                        } catch (Throwable e) {
                             return l.error(e);
-                        } catch (InvocationTargetException e) {
-                            return l.error(e.getCause());
                         }
                     }
                 });
@@ -176,7 +186,7 @@ public abstract class JuaAPI {
                 L.push("\n  no method '" + methodName + "': not returning int values");
                 return 2;
             }
-        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+        } catch (ClassNotFoundException ignored) {
             L.pushNil();
             L.push("\n  no method '" + methodName + "': no such method");
             return 2;
@@ -817,10 +827,10 @@ public abstract class JuaAPI {
 
     private final static class OptionalField {
         @Nullable
-        public final Field field;
+        public final FastField fastField;
 
-        private OptionalField(@Nullable Field field) {
-            this.field = field;
+        private OptionalField(@Nullable FastField fastField) {
+            this.fastField = fastField;
         }
     }
 
@@ -845,20 +855,24 @@ public abstract class JuaAPI {
     public static int fieldIndex(Lua L, Class<?> clazz, @Nullable Object object, String name) {
         try {
             OptionalField optionalField = OBJECT_FIELD_CACHE.get(clazz, name);
-            Field field;
+            FastField fastField;
             if (optionalField == null) {
-                field = clazz.getField(name);
-                OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(field));
+                FastClass<?> fastClass = FastClass.create(clazz);
+                fastField = fastClass.getField(name);
+                OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(fastField));
             } else {
-                field = optionalField.field;
-                if (field == null) {
+                fastField = optionalField.fastField;
+                if (fastField == null) {
                     return 2;
                 }
             }
-            Object obj = field.get(object);
+            if (fastField == null) {
+                return 2;
+            }
+            Object obj = fastField.get(object);
             L.push(obj, Lua.Conversion.SEMI);
             return 1;
-        } catch (NoSuchFieldException | IllegalAccessException | NullPointerException ignored) {
+        } catch (Throwable ignored) {
             OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(null));
             return 2;
         }
@@ -877,21 +891,27 @@ public abstract class JuaAPI {
         Lua L = Jua.get(index);
         try {
             OptionalField optionalField = OBJECT_FIELD_CACHE.get(clazz, name);
-            Field field;
+            FastField fastField;
             if (optionalField == null) {
-                field = clazz.getField(name);
-                OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(field));
+                FastClass<?> fastClass = FastClass.create(clazz);
+                fastField = fastClass.getField(name);
+                OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(fastField));
             } else {
-                field = optionalField.field;
-                if (field == null) {
+                fastField = optionalField.fastField;
+                if (fastField == null) {
                     return L.error(new NoSuchFieldException(name));
                 }
             }
-            Class<?> type = field.getType();
+            if (fastField == null) {
+                return L.error(new NoSuchFieldException(name));
+            }
+            // FastField does not have getType(), but has getDeclaringClass() and getName().
+            // To get the type, use reflection on the underlying class:
+            Class<?> type = fastField.getDeclaringClass().getRawClass().getDeclaredField(fastField.getName()).getType();
             Object o = convertFromLua(L, type, 3);
-            field.set(object, o);
+            fastField.set(object, o);
             return 0;
-        } catch (NoSuchFieldException | IllegalAccessException | IllegalArgumentException e) {
+        } catch (Throwable e) {
             OBJECT_FIELD_CACHE.put(clazz, name, new OptionalField(null));
             return L.error(e);
         }
