@@ -776,7 +776,13 @@ public abstract class JuaAPI {
         Object ret;
 
         if (Modifier.isPublic(method.getModifiers()) && !method.isAccessible()) {
-            method.setAccessible(true);
+            try {
+                method.setAccessible(true);
+            } catch (InaccessibleObjectException e) {
+                // Do nothing, still try to invoke
+            } catch (SecurityException e ) {
+                // Do nothing, still try to invoke
+            }
         }
 
         try {
