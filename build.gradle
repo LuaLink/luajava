@@ -1,22 +1,15 @@
 group 'party.iroiro.luajava'
 version(System.getenv('IS_RELEASE') == 'true' ? '4.0.2' : '4.0.5-SNAPSHOT')
 
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
 
-    dependencies {
-        classpath 'com.android.tools.build:gradle:7.4.2'
-    }
-}
 
 repositories {
     mavenLocal()
     mavenCentral()
 }
 
+
+// Only keep desktop subprojects, remove android and android-test from build
 subprojects { it ->
     if (!['android', 'android-test', 'jpms-example'].contains(it.name)) {
         apply plugin: 'java'
