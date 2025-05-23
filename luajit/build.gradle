@@ -104,15 +104,15 @@ void buildLuaTargets(String... targets) {
 buildLuaTargets(
         addLuaJitTarget(Platform.Linux64,
                 ['make', 'amalg',
-                 'CC=gcc -m64 -D_FORTIFY_SOURCE=0', 'CFLAGS=-fPIC ',
+                 'CC=gcc -m64 -D_FORTIFY_SOURCE=0', 'CFLAGS=-fPIC -DLUAJIT_ENABLE_LUA52COMPAT',
                  'TARGET_SYS=Linux']),
         addLuaJitTarget(Platform.AArch64,
                 ['make', 'amalg',
-                 'HOST_CC=gcc -m64 -D_FORTIFY_SOURCE=0', 'CFLAGS=-fPIC',
+                 'HOST_CC=gcc -m64 -D_FORTIFY_SOURCE=0', 'CFLAGS=-fPIC -DLUAJIT_ENABLE_LUA52COMPAT',
                  'TARGET_SYS=Linux', 'CROSS=aarch64-linux-gnu-']),
         addLuaJitTarget(Platform.Win64,
                 ['make', 'amalg',
-                 'HOST_CC=gcc -m64', 'CFLAGS=-fPIC',
+                 'HOST_CC=gcc -m64', 'CFLAGS=-fPIC -DLUAJIT_ENABLE_LUA52COMPAT',
                  'BUILDMODE=static',
                  'CROSS=x86_64-w64-mingw32-', 'TARGET_SYS=Windows'])
 )
@@ -136,8 +136,6 @@ jnigen {
         cExcludes = ['luajit/**/*']
         libraries += ' -lm  -lluajit '
         headerDirs = ['../../jni/luajava', 'luajit/src', 'mod']
-        cFlags += ' -DLUAJIT_ENABLE_LUA52COMPAT'
-        cppFlags += ' -DLUAJIT_ENABLE_LUA52COMPAT'
     }
 
     add(Linux, x64, x86, {
