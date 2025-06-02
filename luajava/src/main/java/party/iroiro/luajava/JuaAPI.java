@@ -698,7 +698,7 @@ public abstract class JuaAPI {
         }
         Method method = matchMethod(L, methods, METHOD_WRAPPER, objects);
         if (method == null) {
-            L.push("no matching method found");
+            L.push("no matching method found: " + clazz.getSimpleName() + "#" + name);
             return -1;
         } else {
             return methodInvoke(L, method, obj, objects);
@@ -745,7 +745,7 @@ public abstract class JuaAPI {
                 }
             }
         }
-        L.push("no matching method found");
+        L.push("no method with matching signature found: " + clazz.getSimpleName() + "#" + name + "(" + notSignature + ")");
         return -1;
     }
 
