@@ -36,6 +36,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -200,6 +201,32 @@ public abstract class AbstractLua implements Lua {
     @Override
     public void push(@NotNull String string) {
         checkStack(1);
+
+        if (needsUTF8Fix(string)) {
+            try {
+                // Get UTF-8 bytes
+                byte[] utf8Bytes = string.getBytes(StandardCharsets.UTF_8);
+
+                // Build string using Lua's string.char
+                getGlobal("string");
+                getField(-1, "char");
+                remove(-2);  // Remove string table, keep char function
+
+                // Push all bytes as integers
+                for (byte b : utf8Bytes) {
+                    push((long)(b & 0xFF));  // Convert to unsigned
+                }
+
+                // Call string.char(byte1, byte2, byte3, ...)
+                pCall(utf8Bytes.length, 1);
+                return;
+
+            } catch (Exception e) {
+                // Fall back to native method
+            }
+        }
+
+        // Fast path for ASCII
         C.luaJ_pushstring(L, string);
     }
 
@@ -375,9 +402,34 @@ public abstract class AbstractLua implements Lua {
         return null;
     }
 
+    private boolean needsUTF8Fix(String str) {
+        // Quick check: if any character is > 0x7F, might need UTF-8 fix
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) > 0x7F) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public @Nullable String toString(int index) {
-        return C.lua_tostring(L, index);
+        String result = C.lua_tostring(L, index);
+
+        // Only do UTF-8 fix if string contains high Unicode characters
+        if (result != null && needsUTF8Fix(result)) {
+            ByteBuffer buffer = toBuffer(index);
+            if (buffer != null) {
+                try {
+                    byte[] bytes = new byte[buffer.remaining()];
+                    buffer.get(bytes);
+                    return new String(bytes, StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    // Fall back to original result
+                }
+            }
+        }
+        return result;
     }
 
     @Override
