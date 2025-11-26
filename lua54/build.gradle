@@ -59,7 +59,15 @@ jnigen {
         cFlags += linuxFlags
         cppFlags += linuxFlags
     }
-    // Removed Android, iOS, MacOS, robovm, and other extra targets for minimal desktop build
+
+    add(MacOsX, x64)
+    add(MacOsX, x64, ARM)
+    each({ it.os == MacOsX }) {
+        String macFlags = ' -DLUA_USE_DLOPEN '
+        libraries = ''
+        cFlags += macFlags
+        cppFlags += macFlags
+    }
 }
 
 artifacts {

@@ -41,10 +41,13 @@ dependencies {
 }
 
 enum Platform {
-    // Only keep Linux and Windows platforms needed
+    // Desktop platforms: Linux, Windows, and macOS
     Linux64,
     AArch64,
     Win64,
+    MacOsX,
+    MacOsXAArch64,
+    MacOsXMerged, // Merged libluajit.a for macOS universal binary
 }
 
 // Builds LuaJIT and copies the output libluajit.a to jni/luajit/lib/${platform}
@@ -114,7 +117,13 @@ buildLuaTargets(
                 ['make', 'amalg',
                  'HOST_CC=gcc -m64', 'CFLAGS=-fPIC -DLUAJIT_ENABLE_LUA52COMPAT',
                  'BUILDMODE=static',
-                 'CROSS=x86_64-w64-mingw32-', 'TARGET_SYS=Windows'])
+                 'CROSS=x86_64-w64-mingw32-', 'TARGET_SYS=Windows']),
+        addLuaJitTarget(Platform.MacOsX,
+                ['make', 'amalg', 'TARGET_FLAGS=-arch x86_64',
+                 'CFLAGS=-fPIC', 'TARGET_SYS=Darwin']),
+        addLuaJitTarget(Platform.MacOsXAArch64,
+                ['make', 'amalg', 'TARGET_FLAGS=-arch arm64',
+                 'CFLAGS=-fPIC', 'TARGET_SYS=Darwin']),
 )
 
 void linkerConfig(BuildTarget it, Platform platform) {
@@ -147,14 +156,39 @@ jnigen {
     add(Windows, x64, x86, {
         linkerConfig(it, Platform.Win64)
     })
-    // Removed Android, iOS, MacOS, robovm, and other extra targets for minimal desktop build
+
+    add(MacOsX, x64, x86, {
+        linkerConfig(it, Platform.MacOsXMerged)
+    })
+    add(MacOsX, x64, ARM, {
+        linkerConfig(it, Platform.MacOsXMerged)
+    })
 }
 
 
-// Removed MacOS, Android, iOS, and other extra build dependencies for minimal desktop build
+tasks.register('buildLuaMacOsXMerge', {
+    dependsOn tasks.buildLuaMacOsX, tasks.buildLuaMacOsXAArch64
+    String pathX86 = "lib/${Platform.MacOsX.toString().toLowerCase()}"
+    String pathAArch64 = "lib/${Platform.MacOsXAArch64.toString().toLowerCase()}"
+    String pathA = "lib/${Platform.MacOsXMerged.toString().toLowerCase()}"
+    doLast {
+        exec {
+            workingDir 'jni/luajit'
+            commandLine 'mkdir', '-p', pathA
+        }
+        exec {
+            workingDir 'jni/luajit'
+            commandLine 'lipo', '-create',
+                    "${pathX86}/libluajit.a", "${pathAArch64}/libluajit.a",
+                    '-output', "${pathA}/libluajit.a"
+        }
+    }
+})
+
 tasks.jnigenBuildLinux64.dependsOn(tasks.buildLuaLinux64)
 tasks.jnigenBuildLinuxARM64.dependsOn(tasks.buildLuaAArch64)
 tasks.jnigenBuildWindows64.dependsOn(tasks.buildLuaWin64)
+tasks.jnigenBuildMacOsX64.dependsOn(tasks.buildLuaMacOsXMerge)
 
 void addPatchElfTask(String platform) {
     String target = "patchElf${platform}"
