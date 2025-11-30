@@ -59,6 +59,8 @@ jobs:
         run: |
           ./gradlew :luajit:jnigen :luajit:jnigenBuildMacOsX64 :luajit:jnigenBuildMacOsXARM64
           ./gradlew :lua54:jnigen :lua54:jnigenBuildMacOsX64 :lua54:jnigenBuildMacOsXARM64
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "10.9"
       - name: Upload macOS natives
         uses: actions/upload-artifact@v4
         with:
